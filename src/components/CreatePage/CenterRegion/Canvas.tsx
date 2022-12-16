@@ -8,8 +8,8 @@ import {styling} from '../../styling';
 import {IntegerInput} from '../RightPanel/IntegerInput';
 
 export const CANVAS_LENGTH = 16;
-const ZERO = BigInt(0);
 const ONE = BigInt(1);
+const BITS_PER_CHUNK = 253;
 
 export const Canvas = observer(() => {
   const [canvasSize, setCanvasSize] = useState(16);
@@ -35,29 +35,30 @@ export const Canvas = observer(() => {
     return () => document.removeEventListener('mouseup', listener);
   }, [painting]);
 
-  const updateCanvasSize = (delta: number) => setCanvasSize(canvasSize + delta);
+  const updateCanvasSize = (delta: number) => setCanvasSize(oldValue => oldValue + delta);
 
   const logValue = () => {
-    const mask253 = (BigInt(1) << BigInt(253)) - ONE;
+    const mask253 = (BigInt(1) << BigInt(BITS_PER_CHUNK)) - ONE;
     let value = creationState.tokenId;
+
+    // The total number of chunks will be a smallest power of 2 that can fit the whole map data encoded into field
+    // elements 253 bits at a time
+    const chunkCount = Math.ceil((canvasSize * canvasSize) / BITS_PER_CHUNK);
+    const paddedChunkCount = Math.pow(2, Math.ceil(Math.log2(chunkCount)));
     let str = "[\n";
-    while (true) {
-      str += `'0x${(value & mask253).toString(16)}'`;
-      value >>= BigInt(253);
-      if (value === ZERO) {
-        str += '\n]';
-        break;
-      } else {
-        str += ',\n';
-      }
+    for (let i = 0; i < paddedChunkCount; ++i) {
+      str += `'0x${(value & mask253).toString(16)}',\n`;
+      value >>= BigInt(BITS_PER_CHUNK);
     }
+
+    str += ']';
     console.log(str);
   };
 
   return (
     <>
       <Row>
-        <IntegerInput value={canvasSize} min={16} max={100} onChange={updateCanvasSize}/>
+        <IntegerInput value={canvasSize} min={4} max={256} onChange={updateCanvasSize}/>
         <button onClick={logValue}>LOG</button>
       </Row>
       <Container onContextMenu={e => e.preventDefault()}>
